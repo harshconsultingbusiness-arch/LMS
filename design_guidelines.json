@@ -1,0 +1,95 @@
+{
+  "theme": "light",
+  "archetype": "Archetype 6: Vibrant Play (Youth Coaching & Education)",
+  "core_philosophy": "A fusion of Montessori wooden toys (tactile, primary colors, distinct shapes) and architectural precision (precise grids, thin borders). Creating an educational space that is friendly for students but structured and highly efficient for teachers. Every role (Teacher, Student, Parent) shares the same visual language but with specific focuses.",
+  "typography": {
+    "headings": {
+      "family": "Outfit",
+      "weights": ["400", "700"],
+      "usage": "Bold and geometric for all headings (H1-H4). Tracking should be tight (-0.02em)."
+    },
+    "body": {
+      "family": "Nunito",
+      "weights": ["400", "600"],
+      "usage": "Round and highly legible for data tables, lists, and form inputs."
+    },
+    "scales": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight",
+      "h3": "text-xl sm:text-2xl",
+      "h4": "text-lg sm:text-xl",
+      "body": "text-base leading-relaxed",
+      "labels": "text-xs tracking-[0.2em] uppercase font-bold text-slate-500"
+    }
+  },
+  "colors": {
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "primary": "#0EA5E9",
+    "primary_hover": "#0284C7",
+    "secondary": "#F59E0B",
+    "success": "#22C55E",
+    "danger": "#EF4444",
+    "text_primary": "#0F172A",
+    "text_secondary": "#64748B",
+    "border": "#E2E8F0"
+  },
+  "spacing_and_layout": {
+    "general": "Generous spacing. Containers with borders MUST have p-6 or p-8 padding.",
+    "bento_grid": "For Teacher and Student dashboards, use 'Control Room' grid layout. Base grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4. Gap: gap-6.",
+    "radius": "Use rounded-2xl or rounded-3xl for outer containers, rounded-xl for inner elements to reflect the 'Vibrant Play' archetype."
+  },
+  "components": {
+    "buttons": "Rounded full (pill shape) with bright colors. On hover: -translate-y-1, subtle shadow, darker text. E.g. bg-sky-500 text-white hover:bg-sky-600 hover:shadow-lg.",
+    "cards": "Flat background (bg-white), subtle border (border border-slate-200), NO default shadow. On hover: shadow-md, -translate-y-1 transition-transform duration-200.",
+    "inputs": "Shadcn defaults customized with rounded-xl, focus:ring-2 focus:ring-sky-500, border-slate-300.",
+    "tables": "Flat design, rounded-xl overflow-hidden, alternating row colors (bg-white and bg-slate-50). Custom padding py-4 px-6.",
+    "file_uploader": "Dashed border (border-2 border-dashed border-sky-300), bg-sky-50, rounded-2xl, flex center content. Hover state deepens blue."
+  },
+  "animations": {
+    "micro": "Hover lift (-translate-y-1) for interactive elements.",
+    "page": "Staggered entrance animations (framer-motion) for bento grid children."
+  },
+  "role_specific_ui": {
+    "login": "Split screen layout. Left: Hero illustration with abstract colorful shapes. Right: Login form centered.",
+    "teacher_dashboard": "Data-heavy but clean. Use tabs to separate sections: Students, Subjects, Chapters, Approvals. Clear CTAs for 'Create'.",
+    "student_dashboard": "Motivational. Large hero card showing current active chapter. Locked chapters grayed out (opacity-50) with lock icon overlay.",
+    "parent_dashboard": "Overview focused. Progress bars (sky blue or mint green) showing child's chapter progression. Recent remarks in highlighted bento boxes."
+  },
+  "media": {
+    "images": [
+      {
+        "category": "login_background",
+        "url": "https://images.unsplash.com/photo-1751644332113-2004a1b143f1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGNvbG9yZnVsJTIwc2hhcGVzJTIwM2R8ZW58MHx8fHwxNzc1Mjk5ODc0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Colorful 3D abstract shapes. Used as a hero image or background on the left side of the single login page to create a friendly, engaging first impression."
+      },
+      {
+        "category": "student_avatar_placeholder",
+        "url": "https://images.unsplash.com/photo-1540151812223-c30b3fab58e6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDR8MHwxfHNlYXJjaHwxfHxzY2hvb2wlMjBzdHVkZW50JTIwc3R1ZHlpbmd8ZW58MHx8fHwxNzc1Mjk5ODQyfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Boy reading a book. Used as a generic placeholder for student profiles or dashboard headers."
+      },
+      {
+        "category": "parent_dashboard_hero",
+        "url": "https://images.unsplash.com/photo-1633379204542-430941769df3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHwyfHxwYXJlbnQlMjBzbWlsaW5nJTIwY2hpbGR8ZW58MHx8fHwxNzc1Mjk5ODQyfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Parent smiling with child. Used as a banner graphic in the Parent dashboard."
+      },
+      {
+        "category": "school_branding_abstract",
+        "url": "https://images.unsplash.com/photo-1774386897531-1f5d7741409c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwxfHxzY2hvb2wlMjBidWlsZGluZyUyMG1pbmltYWxpc3R8ZW58MHx8fHwxNzc1Mjk5ODc0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Modern building with yellow accents. Can be used as a teacher dashboard banner or placeholder school logo/cover."
+      }
+    ]
+  },
+  "testing": {
+    "attributes": "All interactive elements, buttons, inputs, links, and key content cards must have a `data-testid` attribute using kebab-case role-based naming (e.g., `data-testid=\"login-submit-btn\"`)."
+  },
+  "instructions_to_main_agent": [
+    "Use Lucide-React for standard icons, but prefer Phosphor Icons (@phosphor-icons/react) with duotone weight if you need a softer, friendlier look.",
+    "Implement the UI using React, Tailwind CSS, and Shadcn UI primitives.",
+    "Do not use placeholder URLs like via.placeholder.com. ONLY use the images provided in the media section of this JSON.",
+    "Strictly follow the role-based views. Ensure locked chapters for students are clearly unclickable and visually muted.",
+    "Use custom styling for the file uploader (drag and drop zone) rather than a native file input.",
+    "The primary action color should be Sky Blue (#0EA5E9), used sparingly to draw attention. Avoid Over-saturating the page with color.",
+    "Ensure `data-testid` is added to all interactive elements."
+  ]
+}
