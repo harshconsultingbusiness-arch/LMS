@@ -9,7 +9,7 @@ Build a web-based school LMS portal with 3 roles: Teacher (admin), Student, Pare
 3. **Parent** - Views child's progress, attendance, fees, and teacher remarks
 
 ## Core Requirements (Static)
-- Single login page with role-based redirect
+- Single login page with role-based redirect (User ID + Password, no email)
 - JWT-based authentication with httpOnly cookies
 - Sequential chapter unlocking (next chapter unlocks after teacher approval)
 - Manual evaluation workflow (no MCQ/auto-quiz)
@@ -20,12 +20,12 @@ Build a web-based school LMS portal with 3 roles: Teacher (admin), Student, Pare
 - **Frontend**: React 19, Tailwind CSS, Shadcn/UI
 - **Backend**: FastAPI, MongoDB, Motor (async driver)
 - **Storage**: Emergent Object Storage
-- **Auth**: JWT with bcrypt password hashing
+- **Auth**: JWT with bcrypt password hashing, userId-based login
 
 ## What's Been Implemented (2026-04-04)
 ### Phase 1 - MVP Complete
 - [x] Single login page with role-based redirect
-- [x] Teacher dashboard with 4 tabs (Students & Parents, Curriculum, Submissions, Management)
+- [x] Teacher dashboard with 5 tabs (Students & Parents, Curriculum, Submissions, Fees, Attendance & Remarks)
 - [x] Student/Parent account creation by teacher
 - [x] Subject > Chapter > Topic hierarchy
 - [x] File upload for materials and question sheets
@@ -37,6 +37,16 @@ Build a web-based school LMS portal with 3 roles: Teacher (admin), Student, Pare
 - [x] Attendance management
 - [x] Fees tracking
 - [x] Remarks system
+
+### Phase 2 - Auth & Fees Enhancement (2026-04-04)
+- [x] Changed from email-based to userId-based authentication
+- [x] Login uses User ID + Password (no email required)
+- [x] Teacher creates users with custom user_id
+- [x] Enhanced fees module with totalFee, paidFee, pendingFee (auto-calculated)
+- [x] Payment history tracking with date and description
+- [x] All Students Fee Overview table in teacher dashboard
+- [x] Individual student fee management (set total, add payments)
+- [x] Student/Parent can view fee status and payment history
 
 ## Collections/Models
 - `users` - id, email, password_hash, name, role (teacher/student/parent), student_id (for parent)
