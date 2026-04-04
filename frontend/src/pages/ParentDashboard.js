@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../co
 import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Progress } from '../components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 import { 
   GraduationCap, LogOut, BookOpen, Calendar, DollarSign,
@@ -17,10 +18,11 @@ const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
 export default function ParentDashboard() {
   const { user, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState('overview');
   const [studentInfo, setStudentInfo] = useState(null);
   const [progress, setProgress] = useState([]);
   const [attendance, setAttendance] = useState([]);
-  const [fees, setFees] = useState([]);
+  const [feeData, setFeeData] = useState(null);
   const [remarks, setRemarks] = useState([]);
   const [submissions, setSubmissions] = useState([]);
 
@@ -55,7 +57,7 @@ export default function ParentDashboard() {
   const fetchFees = useCallback(async () => {
     try {
       const res = await axios.get(`${API}/fees`, { withCredentials: true });
-      setFees(res.data);
+      setFeeData(res.data);
     } catch (error) {
       console.error('Error fetching fees:', error);
     }
@@ -115,17 +117,8 @@ export default function ParentDashboard() {
     return { total, present, percentage };
   };
 
-  // Calculate fees stats
-  const getFeesStats = () => {
-    const totalFees = fees.reduce((sum, f) => sum + f.amount, 0);
-    const paidFees = fees.filter(f => f.paid).reduce((sum, f) => sum + f.amount, 0);
-    const pendingFees = totalFees - paidFees;
-    return { total: totalFees, paid: paidFees, pending: pendingFees };
-  };
-
   const overallProgress = getOverallProgress();
   const attendanceStats = getAttendanceStats();
-  const feesStats = getFeesStats();
 
   return (
     <div className="min-h-screen bg-slate-50" data-testid="parent-dashboard">
@@ -175,7 +168,7 @@ export default function ParentDashboard() {
               <div className="text-white">
                 <p className="text-sky-100 text-sm font-medium mb-1">Your child's progress</p>
                 <h2 className="text-3xl font-bold font-['Outfit'] mb-2">{studentInfo?.name || 'Loading...'}</h2>
-                <p className="text-sky-100">Track academic performance, attendance, and more</p>
+                <p className="text-sky-100">Track academic performance, attendance, fees and more</p>
               </div>
             </div>
           </div>
@@ -218,20 +211,22 @@ export default function ParentDashboard() {
           </Card>
 
           {/* Fees Card */}
-          <Card className="border border-slate-200 rounded-2xl card-hover">
+          <Card className={`border rounded-2xl card-hover ${(feeData?.pending_fee || 0) > 0 ? 'border-red-200 bg-red-50/50' : 'border-slate-200'}`}>
             <CardContent className="p-6">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-amber-600" />
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${(feeData?.pending_fee || 0) > 0 ? 'bg-red-100' : 'bg-green-100'}`}>
+                  <DollarSign className={`w-6 h-6 ${(feeData?.pending_fee || 0) > 0 ? 'text-red-600' : 'text-green-600'}`} />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">${feesStats.pending}</p>
+                  <p className={`text-2xl font-bold ${(feeData?.pending_fee || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    ${feeData?.pending_fee || 0}
+                  </p>
                   <p className="text-sm text-slate-500">Fees Pending</p>
                 </div>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-green-600">Paid: ${feesStats.paid}</span>
-                <span className="text-slate-500">Total: ${feesStats.total}</span>
+                <span className="text-green-600">Paid: ${feeData?.paid_fee || 0}</span>
+                <span className="text-slate-500">Total: ${feeData?.total_fee || 0}</span>
               </div>
             </CardContent>
           </Card>
@@ -260,9 +255,29 @@ export default function ParentDashboard() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Subject Progress */}
-          <div className="lg:col-span-2">
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200">
+            <TabsTrigger value="overview" className="rounded-xl data-[state=active]:bg-sky-500 data-[state=active]:text-white">
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Progress
+            </TabsTrigger>
+            <TabsTrigger value="fees" className="rounded-xl data-[state=active]:bg-sky-500 data-[state=active]:text-white">
+              <DollarSign className="w-4 h-4 mr-2" />
+              Fees
+            </TabsTrigger>
+            <TabsTrigger value="attendance" className="rounded-xl data-[state=active]:bg-sky-500 data-[state=active]:text-white">
+              <Calendar className="w-4 h-4 mr-2" />
+              Attendance
+            </TabsTrigger>
+            <TabsTrigger value="remarks" className="rounded-xl data-[state=active]:bg-sky-500 data-[state=active]:text-white">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Remarks
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Progress Tab */}
+          <TabsContent value="overview">
             <Card className="border border-slate-200 rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-['Outfit']">
@@ -325,54 +340,100 @@ export default function ParentDashboard() {
                 </div>
               </CardContent>
             </Card>
-          </div>
+          </TabsContent>
 
-          {/* Right Column */}
-          <div className="space-y-6">
-            {/* Teacher Remarks */}
+          {/* Fees Tab */}
+          <TabsContent value="fees">
             <Card className="border border-slate-200 rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-['Outfit']">
-                  <MessageSquare className="w-5 h-5 text-sky-600" />
-                  Teacher Remarks
+                  <DollarSign className="w-5 h-5 text-sky-600" />
+                  Fee Details
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-64">
+                {/* Fee Summary */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <Card className="bg-slate-50 border-0">
+                    <CardContent className="p-6 text-center">
+                      <p className="text-3xl font-bold text-slate-900">${feeData?.total_fee || 0}</p>
+                      <p className="text-sm text-slate-500 mt-1">Total Fee</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-green-50 border-0">
+                    <CardContent className="p-6 text-center">
+                      <p className="text-3xl font-bold text-green-600">${feeData?.paid_fee || 0}</p>
+                      <p className="text-sm text-slate-500 mt-1">Paid</p>
+                    </CardContent>
+                  </Card>
+                  <Card className={`border-0 ${(feeData?.pending_fee || 0) > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+                    <CardContent className="p-6 text-center">
+                      <p className={`text-3xl font-bold ${(feeData?.pending_fee || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        ${feeData?.pending_fee || 0}
+                      </p>
+                      <p className="text-sm text-slate-500 mt-1">Pending</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Progress Bar */}
+                {feeData?.total_fee > 0 && (
+                  <div className="mb-6">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-slate-600">Payment Progress</span>
+                      <span className="font-medium text-slate-900">
+                        {Math.round((feeData.paid_fee / feeData.total_fee) * 100)}%
+                      </span>
+                    </div>
+                    <Progress value={(feeData.paid_fee / feeData.total_fee) * 100} className="h-3" />
+                  </div>
+                )}
+
+                {/* Payment History */}
+                <div>
+                  <h3 className="font-semibold text-slate-900 mb-4">Payment History</h3>
                   <div className="space-y-3">
-                    {remarks.map((remark, idx) => (
-                      <div 
-                        key={remark.id} 
-                        className="p-4 bg-sky-50 rounded-xl border-l-4 border-sky-500 animate-fadeIn stagger-item"
-                        style={{ animationDelay: `${idx * 50}ms` }}
-                      >
-                        <p className="text-slate-700">{remark.content}</p>
-                        <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
-                          <span>By: {remark.teacher_name}</span>
-                          <span>{new Date(remark.created_at).toLocaleDateString()}</span>
+                    {(feeData?.payment_history || []).map((payment, idx) => (
+                      <div key={payment.id || idx} className="flex items-center justify-between p-4 bg-green-50 rounded-xl">
+                        <div>
+                          <p className="font-semibold text-green-700">${payment.amount}</p>
+                          <p className="text-sm text-slate-500">{payment.description || 'Payment'}</p>
                         </div>
+                        <p className="text-sm text-slate-600">{payment.date}</p>
                       </div>
                     ))}
-                    {remarks.length === 0 && (
-                      <p className="text-center text-slate-500 py-4">No remarks yet</p>
+                    {(!feeData?.payment_history || feeData.payment_history.length === 0) && (
+                      <p className="text-center text-slate-500 py-8">No payment records yet</p>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </CardContent>
             </Card>
+          </TabsContent>
 
-            {/* Recent Attendance */}
+          {/* Attendance Tab */}
+          <TabsContent value="attendance">
             <Card className="border border-slate-200 rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-['Outfit']">
                   <Calendar className="w-5 h-5 text-green-600" />
-                  Recent Attendance
+                  Attendance Record
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-48">
+                <div className="mb-6 p-4 bg-slate-50 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Overall Attendance Rate</span>
+                    <span className="text-2xl font-bold text-slate-900">{attendanceStats.percentage}%</span>
+                  </div>
+                  <Progress value={attendanceStats.percentage} className="h-3 mt-2 [&>div]:bg-green-500" />
+                  <p className="text-sm text-slate-500 mt-2">
+                    {attendanceStats.present} present out of {attendanceStats.total} days
+                  </p>
+                </div>
+                <ScrollArea className="h-80">
                   <div className="space-y-2">
-                    {attendance.slice(0, 10).map((record, idx) => (
+                    {attendance.map((record, idx) => (
                       <div 
                         key={record.id} 
                         className="flex items-center justify-between p-3 bg-slate-50 rounded-lg animate-fadeIn stagger-item"
@@ -391,55 +452,42 @@ export default function ParentDashboard() {
                 </ScrollArea>
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </TabsContent>
 
-        {/* Fees Section */}
-        <Card className="border border-slate-200 rounded-2xl mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-['Outfit']">
-              <DollarSign className="w-5 h-5 text-amber-600" />
-              Fee Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Description</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Due Date</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fees.map((fee, idx) => (
-                    <tr 
-                      key={fee.id} 
-                      className="border-b border-slate-100 animate-fadeIn stagger-item"
-                      style={{ animationDelay: `${idx * 50}ms` }}
-                    >
-                      <td className="py-4 px-4 text-slate-900">{fee.description}</td>
-                      <td className="py-4 px-4 font-semibold text-slate-900">${fee.amount}</td>
-                      <td className="py-4 px-4 text-slate-600">{fee.due_date}</td>
-                      <td className="py-4 px-4">
-                        <Badge className={fee.paid ? 'status-approved' : 'status-rejected'}>
-                          {fee.paid ? 'Paid' : 'Unpaid'}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                  {fees.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="text-center py-8 text-slate-500">No fee records</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Remarks Tab */}
+          <TabsContent value="remarks">
+            <Card className="border border-slate-200 rounded-2xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-['Outfit']">
+                  <MessageSquare className="w-5 h-5 text-sky-600" />
+                  Teacher Remarks
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-96">
+                  <div className="space-y-4">
+                    {remarks.map((remark, idx) => (
+                      <div 
+                        key={remark.id} 
+                        className="p-4 bg-sky-50 rounded-xl border-l-4 border-sky-500 animate-fadeIn stagger-item"
+                        style={{ animationDelay: `${idx * 50}ms` }}
+                      >
+                        <p className="text-slate-700">{remark.content}</p>
+                        <div className="flex items-center justify-between mt-2 text-xs text-slate-500">
+                          <span>By: {remark.teacher_name}</span>
+                          <span>{new Date(remark.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {remarks.length === 0 && (
+                      <p className="text-center text-slate-500 py-8">No remarks yet</p>
+                    )}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

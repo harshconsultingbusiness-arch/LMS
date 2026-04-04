@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
 import { ScrollArea } from '../components/ui/scroll-area';
+import { Progress } from '../components/ui/progress';
 import { toast } from 'sonner';
 import { 
   Users, BookOpen, GraduationCap, LogOut, Plus, Trash2, 
   FileText, CheckCircle2, XCircle, Clock, Upload, Eye,
-  Calendar, DollarSign, MessageSquare, ChevronRight
+  Calendar, DollarSign, MessageSquare, ChevronRight, CreditCard
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -31,6 +32,7 @@ export default function TeacherDashboard() {
   const [chapters, setChapters] = useState([]);
   const [topics, setTopics] = useState([]);
   const [submissions, setSubmissions] = useState([]);
+  const [allFees, setAllFees] = useState([]);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [selectedChapter, setSelectedChapter] = useState(null);
   
@@ -43,7 +45,7 @@ export default function TeacherDashboard() {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   
   // Form states
-  const [userForm, setUserForm] = useState({ email: '', password: '', name: '', role: 'student', student_id: '' });
+  const [userForm, setUserForm] = useState({ user_id: '', password: '', name: '', role: 'student', student_id: '' });
   const [subjectForm, setSubjectForm] = useState({ name: '', description: '' });
   const [chapterForm, setChapterForm] = useState({ name: '', description: '', order: 1 });
   const [topicForm, setTopicForm] = useState({ name: '', content: '', video_link: '', questions: '' });
@@ -104,12 +106,24 @@ export default function TeacherDashboard() {
     }
   }, []);
 
+  const fetchAllFees = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/fees`, { withCredentials: true });
+      if (Array.isArray(res.data)) {
+        setAllFees(res.data);
+      }
+    } catch (error) {
+      console.error('Error fetching fees:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStudents();
     fetchParents();
     fetchSubjects();
     fetchSubmissions();
-  }, [fetchStudents, fetchParents, fetchSubjects, fetchSubmissions]);
+    fetchAllFees();
+  }, [fetchStudents, fetchParents, fetchSubjects, fetchSubmissions, fetchAllFees]);
 
   useEffect(() => {
     if (selectedSubject) {
@@ -129,9 +143,10 @@ export default function TeacherDashboard() {
       await axios.post(`${API}/users`, userForm, { withCredentials: true });
       toast.success(`${userForm.role === 'student' ? 'Student' : 'Parent'} created successfully`);
       setShowUserDialog(false);
-      setUserForm({ email: '', password: '', name: '', role: 'student', student_id: '' });
+      setUserForm({ user_id: '', password: '', name: '', role: 'student', student_id: '' });
       fetchStudents();
       fetchParents();
+      fetchAllFees();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create user');
     }
@@ -257,6 +272,9 @@ export default function TeacherDashboard() {
 
   const pendingSubmissions = submissions.filter(s => s.status === 'pending');
 
+  // Calculate total pending fees
+  const totalPendingFees = allFees.reduce((sum, f) => sum + (f.pending_fee || 0), 0);
+
   return (
     <div className="min-h-screen bg-slate-50" data-testid="teacher-dashboard">
       {/* Header */}
@@ -322,12 +340,12 @@ export default function TeacherDashboard() {
           <Card className="border-0 shadow-sm rounded-2xl card-hover">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                  <Clock className="w-6 h-6 text-orange-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{submissions.filter(s => s.status === 'approved').length}</p>
-                  <p className="text-sm text-slate-500">Approved</p>
+                  <p className="text-2xl font-bold text-slate-900">{pendingSubmissions.length}</p>
+                  <p className="text-sm text-slate-500">Pending Review</p>
                 </div>
               </div>
             </CardContent>
@@ -335,12 +353,12 @@ export default function TeacherDashboard() {
           <Card className="border-0 shadow-sm rounded-2xl card-hover">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-orange-600" />
+                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-red-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{pendingSubmissions.length}</p>
-                  <p className="text-sm text-slate-500">Pending Review</p>
+                  <p className="text-2xl font-bold text-slate-900">${totalPendingFees.toFixed(0)}</p>
+                  <p className="text-sm text-slate-500">Fees Pending</p>
                 </div>
               </div>
             </CardContent>
@@ -365,9 +383,13 @@ export default function TeacherDashboard() {
                 <Badge variant="destructive" className="ml-2 rounded-full">{pendingSubmissions.length}</Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="fees" className="rounded-xl data-[state=active]:bg-sky-500 data-[state=active]:text-white" data-testid="tab-fees">
+              <CreditCard className="w-4 h-4 mr-2" />
+              Fees
+            </TabsTrigger>
             <TabsTrigger value="management" className="rounded-xl data-[state=active]:bg-sky-500 data-[state=active]:text-white" data-testid="tab-management">
               <Calendar className="w-4 h-4 mr-2" />
-              Management
+              Attendance & Remarks
             </TabsTrigger>
           </TabsList>
 
@@ -410,14 +432,14 @@ export default function TeacherDashboard() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Email</Label>
+                      <Label>User ID (for login)</Label>
                       <Input 
-                        type="email"
-                        value={userForm.email} 
-                        onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                        placeholder="user@school.com"
+                        type="text"
+                        value={userForm.user_id} 
+                        onChange={(e) => setUserForm({ ...userForm, user_id: e.target.value })}
+                        placeholder="e.g., student001"
                         className="rounded-xl"
-                        data-testid="user-email-input"
+                        data-testid="user-id-input"
                       />
                     </div>
                     <div className="space-y-2">
@@ -472,7 +494,7 @@ export default function TeacherDashboard() {
                             </div>
                             <div>
                               <p className="font-medium text-slate-900">{student.name}</p>
-                              <p className="text-sm text-slate-500">{student.email}</p>
+                              <p className="text-sm text-slate-500">ID: {student.user_id}</p>
                             </div>
                           </div>
                           <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(student.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
@@ -504,7 +526,7 @@ export default function TeacherDashboard() {
                             </div>
                             <div>
                               <p className="font-medium text-slate-900">{parent.name}</p>
-                              <p className="text-sm text-slate-500">{parent.email}</p>
+                              <p className="text-sm text-slate-500">ID: {parent.user_id}</p>
                               <p className="text-xs text-sky-600">
                                 Linked: {students.find(s => s.id === parent.student_id)?.name || 'Unknown'}
                               </p>
@@ -880,6 +902,11 @@ export default function TeacherDashboard() {
             </div>
           </TabsContent>
 
+          {/* Fees Tab */}
+          <TabsContent value="fees" className="space-y-6">
+            <FeesSection students={students} allFees={allFees} onRefresh={fetchAllFees} />
+          </TabsContent>
+
           {/* Management Tab */}
           <TabsContent value="management" className="space-y-6">
             <ManagementSection students={students} />
@@ -951,14 +978,273 @@ export default function TeacherDashboard() {
   );
 }
 
+// Fees Section Component
+function FeesSection({ students, allFees, onRefresh }) {
+  const [selectedStudent, setSelectedStudent] = useState('');
+  const [studentFee, setStudentFee] = useState(null);
+  const [totalFeeInput, setTotalFeeInput] = useState('');
+  const [paymentForm, setPaymentForm] = useState({ amount: '', date: new Date().toISOString().split('T')[0], description: '' });
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+
+  useEffect(() => {
+    if (selectedStudent) {
+      fetchStudentFee();
+    }
+  }, [selectedStudent]);
+
+  const fetchStudentFee = async () => {
+    try {
+      const res = await axios.get(`${API}/fees/student/${selectedStudent}`, { withCredentials: true });
+      setStudentFee(res.data);
+      setTotalFeeInput(res.data.total_fee?.toString() || '');
+    } catch (error) {
+      console.error('Error fetching student fee:', error);
+    }
+  };
+
+  const handleSetTotalFee = async () => {
+    try {
+      await axios.post(`${API}/fees/setup`, {
+        student_id: selectedStudent,
+        total_fee: parseFloat(totalFeeInput)
+      }, { withCredentials: true });
+      toast.success('Total fee updated');
+      fetchStudentFee();
+      onRefresh();
+    } catch (error) {
+      toast.error('Failed to update total fee');
+    }
+  };
+
+  const handleAddPayment = async () => {
+    try {
+      await axios.post(`${API}/fees/payment`, {
+        student_id: selectedStudent,
+        amount: parseFloat(paymentForm.amount),
+        date: paymentForm.date,
+        description: paymentForm.description
+      }, { withCredentials: true });
+      toast.success('Payment recorded');
+      setShowPaymentDialog(false);
+      setPaymentForm({ amount: '', date: new Date().toISOString().split('T')[0], description: '' });
+      fetchStudentFee();
+      onRefresh();
+    } catch (error) {
+      toast.error('Failed to record payment');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-900 font-['Outfit']">Fee Management</h2>
+      </div>
+
+      {/* All Students Fee Overview */}
+      <Card className="border border-slate-200 rounded-2xl">
+        <CardHeader>
+          <CardTitle className="font-['Outfit']">All Students Fee Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Student</th>
+                  <th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Total Fee</th>
+                  <th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Paid</th>
+                  <th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Pending</th>
+                  <th className="text-center py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Progress</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map(student => {
+                  const fee = allFees.find(f => f.student_id === student.id) || { total_fee: 0, paid_fee: 0, pending_fee: 0 };
+                  const progress = fee.total_fee > 0 ? (fee.paid_fee / fee.total_fee) * 100 : 0;
+                  return (
+                    <tr key={student.id} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-sky-100 rounded-full flex items-center justify-center">
+                            <span className="text-sky-600 font-bold text-sm">{student.name[0]}</span>
+                          </div>
+                          <span className="font-medium text-slate-900">{student.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-right font-medium">${fee.total_fee || 0}</td>
+                      <td className="py-4 px-4 text-right text-green-600 font-medium">${fee.paid_fee || 0}</td>
+                      <td className="py-4 px-4 text-right">
+                        <span className={`font-bold ${(fee.pending_fee || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          ${fee.pending_fee || 0}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-2">
+                          <Progress value={progress} className="h-2 flex-1" />
+                          <span className="text-xs text-slate-500 w-10">{Math.round(progress)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Individual Student Fee Management */}
+      <Card className="border border-slate-200 rounded-2xl">
+        <CardHeader>
+          <CardTitle className="font-['Outfit']">Manage Individual Student</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center gap-4">
+            <Label className="whitespace-nowrap">Select Student:</Label>
+            <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+              <SelectTrigger className="w-64 rounded-xl" data-testid="fee-student-select">
+                <SelectValue placeholder="Choose a student" />
+              </SelectTrigger>
+              <SelectContent>
+                {students.map(s => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedStudent && studentFee && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Fee Summary */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <Card className="bg-slate-50 border-0">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-slate-900">${studentFee.total_fee || 0}</p>
+                      <p className="text-xs text-slate-500">Total Fee</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-green-50 border-0">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-green-600">${studentFee.paid_fee || 0}</p>
+                      <p className="text-xs text-slate-500">Paid</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-red-50 border-0">
+                    <CardContent className="p-4 text-center">
+                      <p className="text-2xl font-bold text-red-600">${studentFee.pending_fee || 0}</p>
+                      <p className="text-xs text-slate-500">Pending</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Set Total Fee */}
+                <div className="flex gap-2">
+                  <Input 
+                    type="number"
+                    placeholder="Total Fee Amount"
+                    value={totalFeeInput}
+                    onChange={(e) => setTotalFeeInput(e.target.value)}
+                    className="rounded-xl"
+                    data-testid="total-fee-input"
+                  />
+                  <Button onClick={handleSetTotalFee} className="bg-sky-500 hover:bg-sky-600 rounded-full" data-testid="set-fee-btn">
+                    Set Total Fee
+                  </Button>
+                </div>
+
+                {/* Add Payment */}
+                <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+                  <DialogTrigger asChild>
+                    <Button className="w-full bg-green-500 hover:bg-green-600 rounded-full" data-testid="add-payment-btn">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Payment
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="rounded-2xl">
+                    <DialogHeader>
+                      <DialogTitle className="font-['Outfit']">Record Payment</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Amount</Label>
+                        <Input 
+                          type="number"
+                          value={paymentForm.amount}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                          placeholder="Enter amount"
+                          className="rounded-xl"
+                          data-testid="payment-amount-input"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Date</Label>
+                        <Input 
+                          type="date"
+                          value={paymentForm.date}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
+                          className="rounded-xl"
+                          data-testid="payment-date-input"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description (optional)</Label>
+                        <Input 
+                          value={paymentForm.description}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, description: e.target.value })}
+                          placeholder="e.g., Term 1 payment"
+                          className="rounded-xl"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowPaymentDialog(false)} className="rounded-full">Cancel</Button>
+                      <Button onClick={handleAddPayment} className="bg-green-500 hover:bg-green-600 rounded-full" data-testid="submit-payment-btn">
+                        Record Payment
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              {/* Payment History */}
+              <Card className="border border-slate-200 rounded-xl">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-['Outfit']">Payment History</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-48">
+                    <div className="space-y-2">
+                      {(studentFee.payment_history || []).map((payment, idx) => (
+                        <div key={payment.id || idx} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                          <div>
+                            <p className="font-medium text-green-700">${payment.amount}</p>
+                            <p className="text-xs text-slate-500">{payment.description || 'Payment'}</p>
+                          </div>
+                          <p className="text-sm text-slate-600">{payment.date}</p>
+                        </div>
+                      ))}
+                      {(!studentFee.payment_history || studentFee.payment_history.length === 0) && (
+                        <p className="text-center text-slate-500 py-4">No payments recorded</p>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // Management Section Component
 function ManagementSection({ students }) {
   const [selectedStudent, setSelectedStudent] = useState('');
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
-  const [feeRecords, setFeeRecords] = useState([]);
   const [remarkRecords, setRemarkRecords] = useState([]);
-  const [feeForm, setFeeForm] = useState({ amount: '', description: '', due_date: '', paid: false });
   const [remarkText, setRemarkText] = useState('');
 
   useEffect(() => {
@@ -969,13 +1255,11 @@ function ManagementSection({ students }) {
 
   const fetchStudentData = async () => {
     try {
-      const [attendance, fees, remarks] = await Promise.all([
+      const [attendance, remarks] = await Promise.all([
         axios.get(`${API}/attendance?student_id=${selectedStudent}`, { withCredentials: true }),
-        axios.get(`${API}/fees?student_id=${selectedStudent}`, { withCredentials: true }),
         axios.get(`${API}/remarks?student_id=${selectedStudent}`, { withCredentials: true })
       ]);
       setAttendanceRecords(attendance.data);
-      setFeeRecords(fees.data);
       setRemarkRecords(remarks.data);
     } catch (error) {
       console.error('Error fetching student data:', error);
@@ -993,31 +1277,6 @@ function ManagementSection({ students }) {
       fetchStudentData();
     } catch (error) {
       toast.error('Failed to mark attendance');
-    }
-  };
-
-  const handleAddFee = async () => {
-    try {
-      await axios.post(`${API}/fees`, {
-        student_id: selectedStudent,
-        ...feeForm,
-        amount: parseFloat(feeForm.amount)
-      }, { withCredentials: true });
-      toast.success('Fee record added');
-      setFeeForm({ amount: '', description: '', due_date: '', paid: false });
-      fetchStudentData();
-    } catch (error) {
-      toast.error('Failed to add fee');
-    }
-  };
-
-  const handleTogglePaid = async (feeId, currentPaid) => {
-    try {
-      await axios.put(`${API}/fees/${feeId}?paid=${!currentPaid}`, {}, { withCredentials: true });
-      toast.success('Fee status updated');
-      fetchStudentData();
-    } catch (error) {
-      toast.error('Failed to update fee');
     }
   };
 
@@ -1052,7 +1311,7 @@ function ManagementSection({ students }) {
       </div>
 
       {selectedStudent && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Attendance */}
           <Card className="border border-slate-200 rounded-2xl">
             <CardHeader>
@@ -1088,65 +1347,6 @@ function ManagementSection({ students }) {
                       <Badge className={record.present ? 'status-approved' : 'status-rejected'}>
                         {record.present ? 'Present' : 'Absent'}
                       </Badge>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          {/* Fees */}
-          <Card className="border border-slate-200 rounded-2xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-['Outfit']">
-                <DollarSign className="w-5 h-5 text-amber-600" />
-                Fees
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-2">
-                <Input 
-                  type="number"
-                  placeholder="Amount"
-                  value={feeForm.amount}
-                  onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })}
-                  className="rounded-xl"
-                  data-testid="fee-amount-input"
-                />
-                <Input 
-                  type="date"
-                  value={feeForm.due_date}
-                  onChange={(e) => setFeeForm({ ...feeForm, due_date: e.target.value })}
-                  className="rounded-xl"
-                  data-testid="fee-date-input"
-                />
-              </div>
-              <Input 
-                placeholder="Description"
-                value={feeForm.description}
-                onChange={(e) => setFeeForm({ ...feeForm, description: e.target.value })}
-                className="rounded-xl"
-                data-testid="fee-description-input"
-              />
-              <Button onClick={handleAddFee} className="w-full bg-amber-500 hover:bg-amber-600 rounded-full" data-testid="add-fee-btn">
-                <Plus className="w-4 h-4 mr-1" /> Add Fee
-              </Button>
-              <ScrollArea className="h-40">
-                <div className="space-y-2">
-                  {feeRecords.map(fee => (
-                    <div key={fee.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg text-sm">
-                      <div>
-                        <p className="font-medium">${fee.amount}</p>
-                        <p className="text-xs text-slate-500">{fee.description}</p>
-                      </div>
-                      <Button 
-                        size="sm" 
-                        variant={fee.paid ? 'default' : 'outline'}
-                        onClick={() => handleTogglePaid(fee.id, fee.paid)}
-                        className={`rounded-full ${fee.paid ? 'bg-green-500' : ''}`}
-                      >
-                        {fee.paid ? 'Paid' : 'Unpaid'}
-                      </Button>
                     </div>
                   ))}
                 </div>

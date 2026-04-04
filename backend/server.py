@@ -60,10 +60,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # ========================
 # JWT TOKENS
 # ========================
-def create_access_token(user_id: str, email: str, role: str) -> str:
+def create_access_token(user_id: str, login_id: str, role: str) -> str:
     payload = {
         "sub": user_id,
-        "email": email,
+        "login_id": login_id,
         "role": role,
         "exp": datetime.now(timezone.utc) + timedelta(hours=24),
         "type": "access"
@@ -154,11 +154,11 @@ def get_object(path: str) -> tuple:
 # PYDANTIC MODELS
 # ========================
 class LoginRequest(BaseModel):
-    email: str
+    user_id: str  # Changed from email to user_id
     password: str
 
 class UserCreate(BaseModel):
-    email: str
+    user_id: str  # Custom login ID created by teacher
     password: str
     name: str
     role: str  # student or parent
@@ -166,7 +166,7 @@ class UserCreate(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    email: str
+    user_id: str
     name: str
     role: str
     student_id: Optional[str] = None
@@ -198,12 +198,16 @@ class AttendanceCreate(BaseModel):
     date: str
     present: bool
 
-class FeeCreate(BaseModel):
+# NEW: Enhanced Fee Models
+class FeeSetup(BaseModel):
+    student_id: str
+    total_fee: float
+
+class PaymentCreate(BaseModel):
     student_id: str
     amount: float
-    description: str
-    due_date: str
-    paid: bool = False
+    date: str
+    description: Optional[str] = ""
 
 class RemarkCreate(BaseModel):
     student_id: str
@@ -214,15 +218,15 @@ class RemarkCreate(BaseModel):
 # ========================
 @api_router.post("/auth/login")
 async def login(request: LoginRequest, response: Response):
-    email = request.email.lower().strip()
-    user = await db.users.find_one({"email": email})
+    login_id = request.user_id.strip()
+    user = await db.users.find_one({"user_id": login_id})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not verify_password(request.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     user_id = str(user["_id"])
-    access_token = create_access_token(user_id, user["email"], user["role"])
+    access_token = create_access_token(user_id, user["user_id"], user["role"])
     refresh_token = create_refresh_token(user_id)
     
     response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
@@ -230,7 +234,7 @@ async def login(request: LoginRequest, response: Response):
     
     return {
         "id": user_id,
-        "email": user["email"],
+        "user_id": user["user_id"],
         "name": user["name"],
         "role": user["role"],
         "student_id": user.get("student_id")
@@ -257,16 +261,16 @@ async def create_user(user_data: UserCreate, request: Request):
     if user_data.role not in ["student", "parent"]:
         raise HTTPException(status_code=400, detail="Role must be student or parent")
     
-    email = user_data.email.lower().strip()
-    existing = await db.users.find_one({"email": email})
+    login_id = user_data.user_id.strip()
+    existing = await db.users.find_one({"user_id": login_id})
     if existing:
-        raise HTTPException(status_code=400, detail="Email already exists")
+        raise HTTPException(status_code=400, detail="User ID already exists")
     
     if user_data.role == "parent" and not user_data.student_id:
         raise HTTPException(status_code=400, detail="Parent must be linked to a student")
     
     user_doc = {
-        "email": email,
+        "user_id": login_id,
         "password_hash": hash_password(user_data.password),
         "name": user_data.name,
         "role": user_data.role,
@@ -275,9 +279,20 @@ async def create_user(user_data: UserCreate, request: Request):
     }
     
     result = await db.users.insert_one(user_doc)
+    
+    # Initialize fee record for students
+    if user_data.role == "student":
+        await db.student_fees.insert_one({
+            "student_id": str(result.inserted_id),
+            "total_fee": 0,
+            "paid_fee": 0,
+            "payment_history": [],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
     return UserResponse(
         id=str(result.inserted_id),
-        email=email,
+        user_id=login_id,
         name=user_data.name,
         role=user_data.role,
         student_id=user_data.student_id,
@@ -314,6 +329,10 @@ async def delete_user(user_id: str, request: Request):
     result = await db.users.delete_one({"_id": ObjectId(user_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    # Also delete fee record
+    await db.student_fees.delete_one({"student_id": user_id})
+    
     return {"message": "User deleted"}
 
 # ========================
@@ -788,58 +807,129 @@ async def get_attendance(request: Request, student_id: Optional[str] = None, mon
     return records
 
 # ========================
-# FEES
+# FEES (Enhanced)
 # ========================
-@api_router.post("/fees")
-async def create_fee(fee: FeeCreate, request: Request):
+@api_router.post("/fees/setup")
+async def setup_fee(fee_setup: FeeSetup, request: Request):
+    """Set or update total fee for a student"""
     await require_teacher(request)
     
-    doc = {
-        "student_id": fee.student_id,
-        "amount": fee.amount,
-        "description": fee.description,
-        "due_date": fee.due_date,
-        "paid": fee.paid,
-        "created_at": datetime.now(timezone.utc).isoformat()
+    # Update or create fee record
+    result = await db.student_fees.update_one(
+        {"student_id": fee_setup.student_id},
+        {"$set": {
+            "total_fee": fee_setup.total_fee,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        },
+        "$setOnInsert": {
+            "paid_fee": 0,
+            "payment_history": [],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    
+    return {"message": "Fee setup successful", "total_fee": fee_setup.total_fee}
+
+@api_router.post("/fees/payment")
+async def add_payment(payment: PaymentCreate, request: Request):
+    """Add a payment entry for a student"""
+    await require_teacher(request)
+    
+    payment_entry = {
+        "id": str(uuid.uuid4()),
+        "amount": payment.amount,
+        "date": payment.date,
+        "description": payment.description,
+        "recorded_at": datetime.now(timezone.utc).isoformat()
     }
     
-    result = await db.fees.insert_one(doc)
-    return {
-        "id": str(result.inserted_id),
-        "student_id": fee.student_id,
-        "amount": fee.amount,
-        "description": fee.description,
-        "due_date": fee.due_date,
-        "paid": fee.paid,
-        "created_at": doc["created_at"]
-    }
+    # Add payment to history and update paid_fee
+    result = await db.student_fees.update_one(
+        {"student_id": payment.student_id},
+        {
+            "$push": {"payment_history": payment_entry},
+            "$inc": {"paid_fee": payment.amount},
+            "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
+        }
+    )
+    
+    if result.modified_count == 0:
+        # Create new record if doesn't exist
+        await db.student_fees.insert_one({
+            "student_id": payment.student_id,
+            "total_fee": 0,
+            "paid_fee": payment.amount,
+            "payment_history": [payment_entry],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {"message": "Payment recorded", "payment": payment_entry}
 
-@api_router.get("/fees")
-async def get_fees(request: Request, student_id: Optional[str] = None):
+@api_router.get("/fees/student/{student_id}")
+async def get_student_fees(student_id: str, request: Request):
+    """Get fee details for a specific student"""
     user = await get_current_user(request)
     
-    query = {}
-    if user["role"] == "student":
-        query["student_id"] = user["_id"]
-    elif user["role"] == "parent":
-        query["student_id"] = user.get("student_id")
-    elif student_id:
-        query["student_id"] = student_id
+    # Authorization check
+    if user["role"] == "student" and user["_id"] != student_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if user["role"] == "parent" and user.get("student_id") != student_id:
+        raise HTTPException(status_code=403, detail="Access denied")
     
-    fees = await db.fees.find(query).sort("due_date", -1).to_list(100)
-    for f in fees:
-        f["id"] = str(f.pop("_id"))
-    return fees
+    fee_record = await db.student_fees.find_one({"student_id": student_id})
+    
+    if not fee_record:
+        return {
+            "student_id": student_id,
+            "total_fee": 0,
+            "paid_fee": 0,
+            "pending_fee": 0,
+            "payment_history": []
+        }
+    
+    fee_record["id"] = str(fee_record.pop("_id"))
+    fee_record["pending_fee"] = fee_record["total_fee"] - fee_record["paid_fee"]
+    
+    return fee_record
 
-@api_router.put("/fees/{fee_id}")
-async def update_fee(fee_id: str, request: Request, paid: bool = True):
-    await require_teacher(request)
+@api_router.get("/fees")
+async def get_all_fees(request: Request, student_id: Optional[str] = None):
+    """Get fees for current user or specific student (teacher only)"""
+    user = await get_current_user(request)
     
-    await db.fees.update_one(
-        {"_id": ObjectId(fee_id)},
-        {"$set": {"paid": paid}}
-    )
-    return {"message": "Fee updated"}
+    if user["role"] == "student":
+        target_id = user["_id"]
+    elif user["role"] == "parent":
+        target_id = user.get("student_id")
+    elif user["role"] == "teacher":
+        if student_id:
+            target_id = student_id
+        else:
+            # Return all fee records for teacher
+            fees = await db.student_fees.find({}).to_list(1000)
+            for f in fees:
+                f["id"] = str(f.pop("_id"))
+                f["pending_fee"] = f["total_fee"] - f["paid_fee"]
+            return fees
+    else:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    fee_record = await db.student_fees.find_one({"student_id": target_id})
+    
+    if not fee_record:
+        return {
+            "student_id": target_id,
+            "total_fee": 0,
+            "paid_fee": 0,
+            "pending_fee": 0,
+            "payment_history": []
+        }
+    
+    fee_record["id"] = str(fee_record.pop("_id"))
+    fee_record["pending_fee"] = fee_record["total_fee"] - fee_record["paid_fee"]
+    
+    return fee_record
 
 # ========================
 # REMARKS
@@ -892,32 +982,45 @@ async def startup():
     except Exception as e:
         logger.warning(f"Storage init on startup: {e}")
     
-    # Seed teacher account
-    teacher_email = os.environ.get("TEACHER_EMAIL", "teacher@school.com")
+    # Seed teacher account with user_id based login
+    teacher_user_id = os.environ.get("TEACHER_USER_ID", "admin")
     teacher_password = os.environ.get("TEACHER_PASSWORD", "teacher123")
     
-    existing = await db.users.find_one({"email": teacher_email})
+    # Check for existing teacher by user_id
+    existing = await db.users.find_one({"user_id": teacher_user_id})
     if existing is None:
-        hashed = hash_password(teacher_password)
-        await db.users.insert_one({
-            "email": teacher_email,
-            "password_hash": hashed,
-            "name": "Admin Teacher",
-            "role": "teacher",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        })
-        logger.info(f"Teacher account created: {teacher_email}")
+        # Also check old email-based teacher and migrate
+        old_teacher = await db.users.find_one({"role": "teacher"})
+        if old_teacher:
+            # Update old teacher to use user_id
+            await db.users.update_one(
+                {"_id": old_teacher["_id"]},
+                {"$set": {"user_id": teacher_user_id}}
+            )
+            logger.info(f"Migrated teacher account to user_id: {teacher_user_id}")
+        else:
+            # Create new teacher
+            hashed = hash_password(teacher_password)
+            await db.users.insert_one({
+                "user_id": teacher_user_id,
+                "password_hash": hashed,
+                "name": "Admin Teacher",
+                "role": "teacher",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+            logger.info(f"Teacher account created: {teacher_user_id}")
     elif not verify_password(teacher_password, existing["password_hash"]):
         await db.users.update_one(
-            {"email": teacher_email},
+            {"user_id": teacher_user_id},
             {"$set": {"password_hash": hash_password(teacher_password)}}
         )
         logger.info("Teacher password updated")
     
     # Create indexes
-    await db.users.create_index("email", unique=True)
+    await db.users.create_index("user_id", unique=True)
     await db.submissions.create_index([("student_id", 1), ("topic_id", 1)])
     await db.attendance.create_index([("student_id", 1), ("date", 1)])
+    await db.student_fees.create_index("student_id", unique=True)
     
     # Write test credentials
     try:
@@ -925,13 +1028,18 @@ async def startup():
         with open("/app/memory/test_credentials.md", "w") as f:
             f.write(f"# Test Credentials\n\n")
             f.write(f"## Teacher (Admin)\n")
-            f.write(f"- Email: {teacher_email}\n")
+            f.write(f"- User ID: {teacher_user_id}\n")
             f.write(f"- Password: {teacher_password}\n")
             f.write(f"- Role: teacher\n\n")
             f.write(f"## Auth Endpoints\n")
-            f.write(f"- POST /api/auth/login\n")
+            f.write(f"- POST /api/auth/login (body: user_id, password)\n")
             f.write(f"- POST /api/auth/logout\n")
-            f.write(f"- GET /api/auth/me\n")
+            f.write(f"- GET /api/auth/me\n\n")
+            f.write(f"## Fee Endpoints\n")
+            f.write(f"- POST /api/fees/setup (set total fee)\n")
+            f.write(f"- POST /api/fees/payment (add payment)\n")
+            f.write(f"- GET /api/fees/student/{{student_id}}\n")
+            f.write(f"- GET /api/fees\n")
     except Exception as e:
         logger.warning(f"Could not write test credentials: {e}")
 

@@ -12,7 +12,7 @@ class LMSAPITester:
         self.tests_run = 0
         self.tests_passed = 0
         self.teacher_credentials = {
-            "email": "teacher@school.com",
+            "user_id": "admin",
             "password": "teacher123"
         }
         self.created_resources = {
@@ -45,7 +45,7 @@ class LMSAPITester:
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("role") == "teacher" and data.get("email") == self.teacher_credentials["email"]:
+                if data.get("role") == "teacher" and data.get("user_id") == self.teacher_credentials["user_id"]:
                     return self.log_test("Teacher login", True)
                 else:
                     return self.log_test("Teacher login", False, f"Invalid response data: {data}")
@@ -78,7 +78,7 @@ class LMSAPITester:
         print("\n🔍 Testing Create Student...")
         try:
             student_data = {
-                "email": f"student_{datetime.now().strftime('%H%M%S')}@school.com",
+                "user_id": f"student_{datetime.now().strftime('%H%M%S')}",
                 "password": "student123",
                 "name": "Test Student",
                 "role": "student"
@@ -92,7 +92,7 @@ class LMSAPITester:
             
             if response.status_code == 200:
                 data = response.json()
-                if data.get("role") == "student" and data.get("email") == student_data["email"]:
+                if data.get("role") == "student" and data.get("user_id") == student_data["user_id"]:
                     self.created_resources["students"].append(data["id"])
                     return self.log_test("Create student", True)
                 else:
@@ -111,7 +111,7 @@ class LMSAPITester:
                 return self.log_test("Create parent", False, "No student available to link parent")
             
             parent_data = {
-                "email": f"parent_{datetime.now().strftime('%H%M%S')}@school.com",
+                "user_id": f"parent_{datetime.now().strftime('%H%M%S')}",
                 "password": "parent123",
                 "name": "Test Parent",
                 "role": "parent",
@@ -313,6 +313,164 @@ class LMSAPITester:
         except Exception as e:
             return self.log_test("List submissions", False, f"Exception: {str(e)}")
 
+    def test_fee_setup(self):
+        """Test setting up fees for a student"""
+        print("\n🔍 Testing Fee Setup...")
+        try:
+            if not self.created_resources["students"]:
+                return self.log_test("Fee setup", False, "No student available for fee setup")
+            
+            student_id = self.created_resources["students"][0]
+            fee_data = {
+                "student_id": student_id,
+                "total_fee": 1000.0
+            }
+            
+            response = self.session.post(
+                f"{self.base_url}/fees/setup",
+                json=fee_data,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if "total_fee" in data:
+                    return self.log_test("Fee setup", True)
+                else:
+                    return self.log_test("Fee setup", False, f"Invalid response: {data}")
+            else:
+                return self.log_test("Fee setup", False, f"Status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            return self.log_test("Fee setup", False, f"Exception: {str(e)}")
+
+    def test_add_payment(self):
+        """Test adding a payment for a student"""
+        print("\n🔍 Testing Add Payment...")
+        try:
+            if not self.created_resources["students"]:
+                return self.log_test("Add payment", False, "No student available for payment")
+            
+            student_id = self.created_resources["students"][0]
+            payment_data = {
+                "student_id": student_id,
+                "amount": 250.0,
+                "date": datetime.now().strftime('%Y-%m-%d'),
+                "description": "Test payment"
+            }
+            
+            response = self.session.post(
+                f"{self.base_url}/fees/payment",
+                json=payment_data,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if "payment" in data:
+                    return self.log_test("Add payment", True)
+                else:
+                    return self.log_test("Add payment", False, f"Invalid response: {data}")
+            else:
+                return self.log_test("Add payment", False, f"Status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            return self.log_test("Add payment", False, f"Exception: {str(e)}")
+
+    def test_get_student_fees(self):
+        """Test getting fee details for a student"""
+        print("\n🔍 Testing Get Student Fees...")
+        try:
+            if not self.created_resources["students"]:
+                return self.log_test("Get student fees", False, "No student available")
+            
+            student_id = self.created_resources["students"][0]
+            response = self.session.get(f"{self.base_url}/fees/student/{student_id}", timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                required_fields = ["total_fee", "paid_fee", "pending_fee", "payment_history"]
+                if all(field in data for field in required_fields):
+                    return self.log_test("Get student fees", True)
+                else:
+                    return self.log_test("Get student fees", False, f"Missing fields in response: {data}")
+            else:
+                return self.log_test("Get student fees", False, f"Status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            return self.log_test("Get student fees", False, f"Exception: {str(e)}")
+
+    def test_get_all_fees(self):
+        """Test getting all fees (teacher view)"""
+        print("\n🔍 Testing Get All Fees...")
+        try:
+            response = self.session.get(f"{self.base_url}/fees", timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list) or isinstance(data, dict):
+                    return self.log_test("Get all fees", True)
+                else:
+                    return self.log_test("Get all fees", False, f"Invalid response type: {type(data)}")
+            else:
+                return self.log_test("Get all fees", False, f"Status {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            return self.log_test("Get all fees", False, f"Exception: {str(e)}")
+
+    def test_student_login(self):
+        """Test student login with created credentials"""
+        print("\n🔍 Testing Student Login...")
+        try:
+            if not self.created_resources["students"]:
+                return self.log_test("Student login", False, "No student created to test login")
+            
+            # We need to get the student's user_id from the created student
+            # For now, let's create a new session and try to login with known credentials
+            student_session = requests.Session()
+            
+            # Use the user_id we created earlier
+            student_credentials = {
+                "user_id": f"student_{datetime.now().strftime('%H%M%S')}",
+                "password": "student123"
+            }
+            
+            # First create a student with known credentials
+            student_data = {
+                "user_id": student_credentials["user_id"],
+                "password": student_credentials["password"],
+                "name": "Login Test Student",
+                "role": "student"
+            }
+            
+            create_response = self.session.post(
+                f"{self.base_url}/users",
+                json=student_data,
+                timeout=10
+            )
+            
+            if create_response.status_code != 200:
+                return self.log_test("Student login", False, "Failed to create test student")
+            
+            # Now try to login with student credentials
+            login_response = student_session.post(
+                f"{self.base_url}/auth/login",
+                json=student_credentials,
+                timeout=10
+            )
+            
+            if login_response.status_code == 200:
+                data = login_response.json()
+                if data.get("role") == "student" and data.get("user_id") == student_credentials["user_id"]:
+                    return self.log_test("Student login", True)
+                else:
+                    return self.log_test("Student login", False, f"Invalid login response: {data}")
+            else:
+                return self.log_test("Student login", False, f"Login failed with status {login_response.status_code}: {login_response.text}")
+                
+        except Exception as e:
+            return self.log_test("Student login", False, f"Exception: {str(e)}")
+
     def test_logout(self):
         """Test logout functionality"""
         print("\n🔍 Testing Logout...")
@@ -348,6 +506,15 @@ class LMSAPITester:
         self.test_create_student()
         self.test_create_parent()
         self.test_list_users()
+        
+        # Fee management tests
+        self.test_fee_setup()
+        self.test_add_payment()
+        self.test_get_student_fees()
+        self.test_get_all_fees()
+        
+        # Student login test
+        self.test_student_login()
         
         # Curriculum tests
         self.test_create_subject()

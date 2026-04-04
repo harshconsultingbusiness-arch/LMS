@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { BookOpen, GraduationCap, Users } from 'lucide-react';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
@@ -28,7 +28,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(email, password);
+      await login(userId, password);
       toast.success('Welcome back!');
     } catch (error) {
       const message = formatError(error.response?.data?.detail) || error.message;
@@ -89,24 +89,24 @@ export default function LoginPage() {
             <CardHeader className="space-y-1 pb-6">
               <CardTitle className="text-2xl font-bold text-center font-['Outfit']">Welcome Back</CardTitle>
               <CardDescription className="text-center text-slate-500">
-                Sign in with your credentials
+                Sign in with your User ID and Password
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-slate-700">
-                    Email Address
+                  <Label htmlFor="userId" className="text-sm font-medium text-slate-700">
+                    User ID
                   </Label>
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@school.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    id="userId"
+                    type="text"
+                    placeholder="Enter your User ID"
+                    value={userId}
+                    onChange={(e) => setUserId(e.target.value)}
                     required
                     className="h-12 rounded-xl border-slate-200 focus:border-sky-500 focus:ring-sky-500"
-                    data-testid="login-email-input"
+                    data-testid="login-userid-input"
                   />
                 </div>
                 <div className="space-y-2">
